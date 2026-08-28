@@ -77,9 +77,10 @@ async function main() {
     name: 'articles',
     type: 'base',
     fields: [
-      { type: 'text', name: 'title', required: true },
-      { type: 'text', name: 'slug', required: true },
-      { type: 'select', name: 'type', values: ['notes', 'thinkings', 'moments'], maxSelect: 1, required: true },,,
+      // title 非必填：小记（moments）可以只有正文；notes/thinkings 的标题由写作流程保证
+      { type: 'text', name: 'title' },
+      { type: 'text', name: 'slug', required: true, autogeneratePattern: '[a-z0-9]{15}' },
+      { type: 'select', name: 'type', values: ['notes', 'thinkings', 'moments'], maxSelect: 1, required: true },
       { type: 'select', name: 'status', values: ['draft', 'published', 'archived'], maxSelect: 1, required: true },
       { type: 'text', name: 'label' },
       { type: 'text', name: 'summary' },
