@@ -1,0 +1,5 @@
+.env.local
+*.local
+pb_data/
+node_modules/
+.DS_Store

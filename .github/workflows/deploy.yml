@@ -1,0 +1,72 @@
+name: Deploy PocketBase backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "pb_hooks/**"
+      - "pb_migrations/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monostich-pb-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ secrets.DEPLOY_PORT || '22' }}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload hooks and migrations
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          scp -P "$DEPLOY_PORT" pb_hooks/*.js pb_hooks/*.pb.js \
+            "$DEPLOY_USER@$DEPLOY_HOST:/opt/monostich/pb/pb_hooks/"
+          scp -P "$DEPLOY_PORT" pb_migrations/*.js \
+            "$DEPLOY_USER@$DEPLOY_HOST:/opt/monostich/pb/pb_migrations/"
+
+      - name: Restart and verify
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE_SCRIPT'
+          set -eu
+
+          systemctl restart pocketbase
+          sleep 2
+          systemctl is-active pocketbase
+
+          # API 健康检查
+          curl -fsS http://127.0.0.1:8090/api/health > /dev/null
+
+          # 钩子加载检查：必须出现 repo= 且非 (未配置)
+          journalctl -u pocketbase -n 20 --no-pager | grep '\[rebuild\] hook 已加载'
+          journalctl -u pocketbase -n 20 --no-pager | grep '\[rebuild\]' | grep -q 'repo=(未配置)' && {
+            echo '::warning::PB_GITHUB_REPO 未配置，自动重建派发不会工作'
+          } || true
+
+          echo "PocketBase deployed."
+          REMOTE_SCRIPT
