@@ -72,7 +72,25 @@ systemctl enable --now pocketbase
 journalctl -u pocketbase -n 20    # 应看到 "[rebuild] hook 已加载: repo=..."
 ```
 
-### 6. nginx
+### 6. 编辑器静态托管目录（授权给部署用户）
+
+MonostichEditor（`/editor/` 单页编辑器）由 GitHub Actions 部署到
+`pb_public/editor/`，PocketBase 原生托管，无需重启 / 改 nginx。
+但 PocketBase 以 root 运行，`/opt/monostich/pb/` 默认属 root，而部署用的是
+`DEPLOY_USER`（非 root）——首次启用编辑器部署前，必须把这两个目录授权给
+部署用户，否则 workflow 会报 `mkdir: Permission denied`：
+
+```bash
+# 以 root 执行；把 deploy 换成 GitHub secret DEPLOY_USER 的实际值
+install -d -o deploy -g deploy /opt/monostich/pb/editor-releases
+install -d -o deploy -g deploy /opt/monostich/pb/pb_public
+```
+
+之后每次部署：Actions 解包到 `editor-releases/<sha>/`，把
+`pb_public/editor` 软链切过去，保留最近 5 个版本。验证：
+`https://admin.monostich.cloud/editor/` 能打开登录框即通。
+
+### 7. nginx
 
 ```bash
 cp <仓库>/deploy/nginx-monostich.conf /etc/nginx/sites-available/monostich
@@ -86,13 +104,13 @@ certbot --nginx -d monostich.cloud -d admin.monostich.cloud
 验证：打开 `https://admin.monostich.cloud/_/` 能登录后台即通。
 不要用防火墙开放 8090 —— 公网入口只有 nginx。
 
-### 7. GitHub Actions
+### 8. GitHub Actions
 
 仓库内的 `.github/workflows/deploy.yml` 已配置完毕（含 `repository_dispatch` 自动触发和构建时的
 `PB_BASE_URL`），不需要你再改。你现有的 SSH 部署密钥等 secrets 保持原样即可；
 只需把改动提交推送一次，新的触发器才会生效。
 
-### 8. 备份
+### 9. 备份
 
 ```bash
 cp <仓库>/deploy/backup-pocketbase.sh /opt/monostich/
