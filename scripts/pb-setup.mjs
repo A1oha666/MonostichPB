@@ -68,8 +68,13 @@ async function main() {
     }, admin);
     console.log('+ 创建集合 editors');
   }
+  // 读规则：公开只能看已发布；editors 可读全部（含草稿，供编辑器与预览构建）。
+  // 读场景可用 collectionName；写场景（见下）必须用 collectionId。
   const draftReadRule =
-    `status = "published" || @request.auth.id != "" && @request.auth.collectionId = "${editors.id}"`;
+    `status = "published" || @request.auth.collectionName = "editors"`;
+  // 写规则：PocketBase v0.40 实测，create/update/delete 求值发生在规则反查集合阶段，
+  // 此时 collectionName 不可用，必须硬编码 editors 集合 ID。
+  const editorWriteRule = `@request.auth.collectionId = "${editors.id}"`;
 
   // 3. articles 集合
   const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
@@ -94,11 +99,12 @@ async function main() {
       { type: 'file', name: 'attachments', maxSelect: 20, mimeTypes: IMAGE_MIMES, thumbs: ['1200x0'] },
     ],
     indexes: ['CREATE UNIQUE INDEX `idx_articles_type_slug` ON `articles` (`type`, `slug`)'],
-    // 公开只能读到已发布；editors 身份可读全部（用于草稿预览构建）
+    // 公开只能读到已发布；editors 身份可读全部（用于编辑器与草稿预览构建）
     listRule: draftReadRule,
     viewRule: draftReadRule,
-    createRule: null,
-    updateRule: null,
+    // 允许 editors 通过 REST 直写（自建单页编辑器）；删除仍仅超级管理员
+    createRule: editorWriteRule,
+    updateRule: editorWriteRule,
     deleteRule: null,
   };
 
@@ -119,8 +125,9 @@ async function main() {
   }
 
   console.log('\n完成。当前规则：');
-  console.log(`  list/view : ${articles.listRule}`);
-  console.log(`  写操作    : 仅超级管理员`);
+  console.log(`  list/view : ${articleSpec.listRule}`);
+  console.log(`  create/upd: ${articleSpec.createRule}`);
+  console.log(`  delete    : 仅超级管理员`);
   console.log(`  唯一约束  : (type, slug)`);
 
   // 4. 本地预览用 editors 账号（仅本地开发，凭据写入 pb/.env.local，不入库）
