@@ -38,3 +38,17 @@ onRecordAfterDeleteSuccess((e) => {
         lib.requestRebuild(e.record.getString('slug'));
     }
 }, 'articles');
+
+// About 页个人介绍（site_profile 单例）变更也要重建；记录本身不区分
+// 状态，任何写操作都直接影响公开站点。
+onRecordAfterCreateSuccess((e) => {
+    e.next();
+    const lib = require(`${__hooks}/rebuild-lib.js`);
+    lib.requestRebuild('site_profile');
+}, 'site_profile');
+
+onRecordAfterUpdateSuccess((e) => {
+    e.next();
+    const lib = require(`${__hooks}/rebuild-lib.js`);
+    lib.requestRebuild('site_profile');
+}, 'site_profile');
