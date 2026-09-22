@@ -52,3 +52,16 @@ onRecordAfterUpdateSuccess((e) => {
     const lib = require(`${__hooks}/rebuild-lib.js`);
     lib.requestRebuild('site_profile');
 }, 'site_profile');
+
+// 首页页脚摘抄列表变更后刷新静态首页。
+onRecordAfterCreateSuccess((e) => {
+    e.next();
+    const lib = require(`${__hooks}/rebuild-lib.js`);
+    lib.requestRebuild('site_excerpts');
+}, 'site_excerpts');
+
+onRecordAfterUpdateSuccess((e) => {
+    e.next();
+    const lib = require(`${__hooks}/rebuild-lib.js`);
+    lib.requestRebuild('site_excerpts');
+}, 'site_excerpts');
